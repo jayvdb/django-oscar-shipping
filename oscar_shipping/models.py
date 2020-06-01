@@ -302,7 +302,7 @@ class ShippingCompany(AbstractWeightBased):
                                         address or another shipping method.
                                     """) % e.title)
                 except ImproperlyConfigured as e:  # upraised error handling
-                    self.errors.append("ImproperlyConfigured error (%s)" % e.message)
+                    self.errors.append("ImproperlyConfigured error (%s)" % str(e))
                     self.messages.append("Please, select another shipping method or call site administrator!")
                 except CityNotFoundError as e: 
                     self.errors.append(_(u"""Can't find destination city '{title}'
