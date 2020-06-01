@@ -33,6 +33,9 @@ setup(
     url='https://github.com/okfish/django-oscar-shipping',
     packages=[
         'oscar_shipping',
+        'oscar_shipping.checkout',
+        'oscar_shipping.facade',
+        'oscar_shipping.templatetags',
     ],
     include_package_data=True,
     install_requires=[
