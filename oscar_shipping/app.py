@@ -6,18 +6,17 @@ except ImportError:
 
 from django.views.decorators.cache import cache_page
 
-from oscar.core.application import Application
+try:
+    from oscar.core.application import OscarConfig
+except ImportError:
+    from django.apps import AppConfig as OscarConfig
 
-from . import views
 
+class ShippingConfigBase(object):
+    name = 'oscar_shipping'
 
-class ShippingApplication(Application):
-    name = 'shipping'
-    city_lookup_view = views.CityLookupView
-    shipping_details_view = views.ShippingDetailsView
-    
     def get_urls(self):
-        urlpatterns = super(ShippingApplication, self).get_urls()
+        urlpatterns = super(ShippingConfigBase, self).get_urls()
         urlpatterns += patterns('',
             url(r'^city-lookup/(?P<slug>[\w-]+)/$', cache_page(60*10)(self.city_lookup_view.as_view()),
                 name='city-lookup'),
@@ -28,5 +27,25 @@ class ShippingApplication(Application):
         )
         return self.post_process_urls(urlpatterns)
 
+    def ready(self):
+        from . import views
+        self.city_lookup_view = views.CityLookupView
+        self.shipping_details_view = views.ShippingDetailsView
 
-application = ShippingApplication()
+
+class ShippingConfig(ShippingConfigBase, OscarConfig):
+    pass
+
+
+try:
+    from oscar.core.application import Application
+
+
+    class ShippingApplication(ShippingConfigBase, Application):
+        pass
+
+
+    application = ShippingApplication()
+
+except ImportError:
+    pass
