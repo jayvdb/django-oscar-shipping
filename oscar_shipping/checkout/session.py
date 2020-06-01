@@ -1,6 +1,9 @@
 from decimal import Decimal as D
 
-from django.core.urlresolvers import reverse
+try:
+    from django.core.urlresolvers import reverse
+except ImportError:
+    from django.urls import reverse
 
 from oscar.core import prices
 from oscar.apps.checkout.session import CheckoutSessionMixin as CoreCheckoutSessionMixin
