@@ -2,6 +2,8 @@
 from decimal import Decimal as D
 
 import importlib
+import logging
+import warnings
 
 from django.db import models
 from django.conf import settings
@@ -29,6 +31,8 @@ from .exceptions import (OriginCityNotFoundError,
                          TooManyFoundError,
                          CalculationError)
 
+logger = logging.getLogger(__name__)
+
 weight_precision = getattr(settings, 'OSCAR_SHIPPING_WEIGHT_PRECISION', D('0.000')) 
 volume_precision = getattr(settings, 'OSCAR_SHIPPING_VOLUME_PRECISION', D('0.000'))
 
@@ -52,8 +56,10 @@ def get_api_modules():
     for name in API_AVAILABLE.keys():
         try:
             res[name] = importlib.import_module(".facade.%s" % name, __package__)
-        except ImportError:
-            pass 
+        except ImportError as e:
+            msg = 'Error importing {}: {}'.format(name, e)
+            logger.error(msg)
+            warnings.warn(msg)
     return res
 
 api_modules_pool = get_api_modules()
@@ -221,6 +227,7 @@ class ShippingCompany(AbstractWeightBased):
 
     def calculate(self, basket, options=None):
         # TODO: move code to smth like ShippingCalculator class
+        logger.debug('calculate {} {}'.format(basket, options))
         results = []
         charge = D('0.0')
         self.messages = []
@@ -239,6 +246,7 @@ class ShippingCompany(AbstractWeightBased):
         packs = packer.pack_basket(basket)  
         facade = self.facade
         if not self.destination: 
+            logger.error('ShippingCompany.calculate invoked without a destination')
             self.errors.append(_("ERROR! There is no shipping address for charge calculation!\n"))
         else:
             self.messages.append(_(u"""Approximated shipping price
@@ -268,9 +276,11 @@ class ShippingCompany(AbstractWeightBased):
                                                         options['receiverCityId'],
                                                         packs)
                 except CalculationError as e:
+                    logger.info(e)
                     self.errors.append("Post-calculation error: %s" % e.errors)
                     self.messages.append(e.title)
-                except:
+                except Exception as e:
+                    logger.exception(e)
                     raise
                 if not errors:
                     (charge, msg,
@@ -287,11 +297,13 @@ class ShippingCompany(AbstractWeightBased):
             else:            
                 try:          
                     results = facade.get_charges(weight, packs, self.origin, self.destination)
-                except ApiOfflineError:
+                except ApiOfflineError as e:
+                    logger.exception(e)
                     self.errors.append(_(u"""%s API is offline. Can't
                                          calculate anything. Sorry!""") % self.name)
                     self.messages.append(_(u"Please, choose another shipping method!"))
                 except OriginCityNotFoundError as e: 
+                    logger.info(e)
                     # Paranoid mode as ImproperlyConfigured should be raised by facade
                     self.errors.append(_(u"""City of origin '%s' not found
                                       in the shipping company 
@@ -302,9 +314,11 @@ class ShippingCompany(AbstractWeightBased):
                                         address or another shipping method.
                                     """) % e.title)
                 except ImproperlyConfigured as e:  # upraised error handling
+                    logger.exception(e)
                     self.errors.append("ImproperlyConfigured error (%s)" % str(e))
                     self.messages.append("Please, select another shipping method or call site administrator!")
                 except CityNotFoundError as e: 
+                    logger.error(e)
                     self.errors.append(_(u"""Can't find destination city '{title}'
                                       to calculate charge. 
                                       Errors: {errors}""").format(title=e.title, errors=e.errors))
@@ -319,6 +333,7 @@ class ShippingCompany(AbstractWeightBased):
                                                                 lookup_url=lookup_url,
                                                                 details_url=details_url)
                 except TooManyFoundError as e:
+                    logger.exception(e)
                     self.errors.append(_(u"Found too many destinations for given city (%s)") % e.title)
                     if CHANGE_DESTINATION:
                         self.messages.append(_("Please refine your shipping address"))
@@ -326,6 +341,7 @@ class ShippingCompany(AbstractWeightBased):
                                                                 choices=e.results,
                                                                 details_url=details_url)
                 except CalculationError as e:
+                    logger.info(e)
                     self.errors.append(_(u"""Error occurred during charge
                                         calculation for given city (%s)""") % e.title)
                     self.messages.append(_(u"API error was: %s") % e.errors)
@@ -333,8 +349,11 @@ class ShippingCompany(AbstractWeightBased):
                         self.extra_form = facade.get_extra_form(origin=self.origin,
                                                                 details_url=details_url,
                                                                 lookup_url=lookup_url)
-                except:
-                    raise
+                except Exception as e:
+                    logger.exception(e)
+                    self.errors.append(_(u"""%s API is offline. Can't
+                                         calculate anything. Sorry!""") % self.name)
+                    self.messages.append(_(u"Please, choose another shipping method!"))
                 else:
                     (charge, msg,
                      err, self.extra_form) = facade.parse_results(results,
