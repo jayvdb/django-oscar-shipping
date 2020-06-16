@@ -44,8 +44,6 @@ API_ENABLED = getattr(settings, 'OSCAR_SHIPPING_API_ENABLED', ['pecom', 'emspost
 
 API_AVAILABLE = {'pecom': _('PEC API ver. 1.0'), 
                  'emspost': _('EMS Russian Post REST API'),
-                 'dhl': _('DHL API (not ready yet)'),
-                 'usps': _('USPS API (not ready yet)'),
                  }
 
 CHANGE_DESTINATION = getattr(settings, 'OSCAR_SHIPPING_CHANGE_DESTINATION', True)
